@@ -1,0 +1,9 @@
+openmpi +legacylaunchers fabrics=ucx schedulers=slurm ^pmix@4.2.1
+python 
+py-tensorflow+cuda+mpi cuda_arch=__CA__
+py-keras
+r-rcpparmadillo
+#r-exactextractr
+#r-lme4
+#r-pbapply
+#r-testthat
