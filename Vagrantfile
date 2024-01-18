@@ -13,6 +13,8 @@ Vagrant.configure("2") do |config|
     sms.vm.hostname = "sms"
     sms.vm.network "private_network", ip: "172.16.0.1", netmask: "255.255.0.0", virtualbox__intnet: "XCBC"
     sms.vm.provision "shell", inline: <<-SHELL
+      # dnf install 'dnf-command(versionlock)'
+      # dnf versionlock add kernel
       function add_if_missing() {
         if [ -f $2 ]; then
           grep -qFx $1 $2 || echo $1 >> $2
@@ -51,22 +53,8 @@ Vagrant.configure("2") do |config|
       yum -y install platform-python-devel libevent-devel
     SHELL
     sms.vm.provision "shell", privileged: false, inline: <<-SHELLUNPRIV
-      # command -v module >& /dev/null && module purge
-      # SPACK_VER=v0.21.1
-      # mkdir -p ~/spack/${SPACK_VER}
-      # git clone -c feature.manyFiles=true https://github.com/spack/spack.git ~/spack/git
-      # ( cd ~/spack/git && git archive --format=tar ${SPACK_VER} | tar -C ../${SPACK_VER} -xf - )
-      # cp /vagrant/packages.yaml ~/spack/${SPACK_VER}/etc/spack
-      # perl -pi.bak -e "
-      #   s/slurm\@.*/slurm\@$(rpm -q --qf '%{VERSION}' slurm-slurmctld-ohpc)/g;
-      #   s/pmix\@.*/pmix\@$(rpm -q --qf '%{VERSION}' pmix-ohpc)/g;
-      #   s/libevent\@.*/libevent\@$(rpm -q --qf '%{VERSION}' libevent-devel)/g;
-      #   " ~/spack/${SPACK_VER}/etc/spack/packages.yaml
-      # . ~/spack/${SPACK_VER}/share/spack/setup-env.sh
-      # spack compiler find --scope=site
-      # spack install -j4 --reuse openmpi+legacylaunchers schedulers=slurm fabrics=ucx ^pmix@4.2.1
-      #spack load openmpi
-      #ompi_info
+      command -v module >& /dev/null && module purge
+      /vagrant/spack/build v0.21.1 all
     SHELLUNPRIV
   end
 
