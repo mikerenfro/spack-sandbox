@@ -1,5 +1,5 @@
 #!/bin/bash
-set -e # exit on any non-zero exit code, need to work around for install_if_missing and find_duplicates
+set -e # exit on any non-zero exit code
 
 function add_if_missing() {
     grep -qFx "$1" $2 || echo "$1" >> $2
@@ -11,16 +11,54 @@ function remove_if_present() {
 
 function install_if_missing() {
     set +e
-    if spack find $@ >& /dev/null; then
-        echo "### $@ already installed"
+    spec_to_install=""
+    only_deps=0
+    if echo "$@" | grep -q -- "--only dependencies"; then
+        # we have a request to only check/install dependencies, not the
+        # top-level package
+        only_deps=1
+        spec_without_only_deps=$(echo "$@" | sed 's/--only dependencies//g')
+        toplevel_deps=$(${BASEDIR}/get_toplevel_deps ${spec_without_only_deps})
+        for dep_hash in ${toplevel_deps}; do
+            if spack find ${dep_hash} >& /dev/null; then
+                # top-level dependency package found, go on to next
+                :
+            else
+                # top-level dependency package not found, flag overall spec
+                # for installation
+                spec_to_install=$@
+                break
+            fi
+        done
+        if [ "${spec_to_install}" == "" ]; then
+            echo "### $@ already installed"
+        fi
     else
-        echo "### Building $@"
+        # we have a request to check/install a package and its dependencies
+        if spack find $@ >& /dev/null; then
+            echo "### $@ already installed"
+        else
+            spec_to_install=$@
+        fi
+    fi
+    if [ "${spec_to_install}" != "" ]; then
+        # install the spec
+        echo "### Installing ${spec_to_install}"
         if [ -z "${SRUN}" ]; then
-            spack install ${INSTALL_OPTS} $@
+            spack install ${INSTALL_OPTS} ${spec_to_install}
         else
             ${SRUN} ${DESTDIR}/bin/spack install ${INSTALL_OPTS} $@
         fi
-        spack load $@
+        # load the spec to create directories and prevent future "permission
+        # denied" errors. 
+        if [ ${only_deps} -eq 1 ]; then
+            spack load ${toplevel_deps}
+            spack mark -e ${toplevel_deps}
+        else
+            spec_without_deprecated=$(echo "${spec_to_install}" | sed 's/--deprecated//g')
+            spack load ${spec_without_deprecated}
+        fi
+        # unload everything to clean up for next time
         spack unload --all
     fi
     set -e
@@ -95,10 +133,10 @@ EOD
 EOD
         fi
         set -e
-        cat >> ${DESTDIR}/etc/spack/packages.yaml <<EOD
-  all:
-    target: ['x86_64_v3']
-EOD
+#         cat >> ${DESTDIR}/etc/spack/packages.yaml <<EOD
+#   all:
+#     target: ['x86_64_v3']
+# EOD
     fi
 }
 
@@ -141,7 +179,6 @@ do_gcc_installs() {
     add_if_missing    "    require:" ${DESTDIR}/etc/spack/packages.yaml
     remove_if_present '    - one_of:' ${DESTDIR}/etc/spack/packages.yaml
     add_if_missing    "    - one_of: [${ONE_OF}]" ${DESTDIR}/etc/spack/packages.yaml
-EOD
 }
 
 find_duplicates() {
@@ -183,7 +220,7 @@ else
     J_FLAG=$((${MINCPUS} / ${PARALLEL_INSTALLS}))
 fi
 
-INSTALL_OPTS="--reuse -j${J_FLAG}"
+INSTALL_OPTS="-j${J_FLAG}"
 CUDA_ARCH="37,80"
 REMOTEURL='https://github.com/spack/spack.git'
 REMOTETAG=$1
@@ -197,9 +234,11 @@ populate_destination_folder
 initialize_spack
 if [ "$1" == "gcc" ]; then
     do_gcc_installs
+    spack gc --yes-to-all
 elif [ "$1" == "all" ]; then
     do_gcc_installs
     do_spack_installs
+    spack gc --yes-to-all
 else
     usage
 fi

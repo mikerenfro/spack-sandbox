@@ -1,8 +1,22 @@
+# Format for each line: any valid spec for 'spack install', optionally
+# prefixed with '--deprecated', '--only packages', '--only dependencies'
+# options. Lines starting with # are ignored. '--only packages' is untested
 openmpi +legacylaunchers fabrics=ucx schedulers=slurm ^pmix@4.2.1
-python 
+python@3.8
+python@3.9
+python@3.10
+python@3.11
+# r@4.2 depends on curl@7 which is deprecated due to CVEs
+--deprecated r@4.2
+r@4.3
+# an '--only dependencies' spec will install all top-level dependencies
+# and mark them as explicitly installed to protect against garbage collection
+--only dependencies openfoam-org@10
+# a spec including '__CA__' will use the value for CUDA_ARCH specified in
+# the build script
 py-tensorflow+cuda+mpi cuda_arch=__CA__
-py-keras
-r-rcpparmadillo
+#py-keras
+#r-rcpparmadillo
 #r-exactextractr
 #r-lme4
 #r-pbapply
