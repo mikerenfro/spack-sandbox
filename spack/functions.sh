@@ -208,7 +208,7 @@ do_full_install() {
     elif [ "$2" == "all" ]; then
         do_gcc_installs
         do_spack_installs
-        spack gc --yes-to-all
+        # spack gc --yes-to-all
     else
         usage
     fi
