@@ -11,4 +11,4 @@ CLONEDIR=${PWD}/git
 DESTDIR=${PWD}/$(basename ${REMOTETAG})
 source ${BASEDIR}/functions.sh
 INSTALL_OPTS="-j${J_FLAG}"
-do_full_install
+do_full_install $1 $2
