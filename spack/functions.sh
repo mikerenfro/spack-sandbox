@@ -12,6 +12,11 @@ function install_if_missing() {
     set +e
     spec_to_install=""
     only_deps=0
+    if echo "$@" | grep -q -- "--fresh"; then
+        FRESH="--fresh"
+    else
+        FRESH=""
+    fi
     if echo "$@" | grep -q -- "--only dependencies"; then
         # we have a request to only check/install dependencies, not the
         # top-level package
@@ -44,9 +49,9 @@ function install_if_missing() {
         # install the spec
         echo "### Installing ${spec_to_install}"
         if [ -z "${SRUN}" ]; then
-            spack install ${INSTALL_OPTS} ${spec_to_install}
+            spack install ${INSTALL_OPTS} ${FRESH} ${spec_to_install}
         else
-            ${SRUN} ${DESTDIR}/bin/spack install ${INSTALL_OPTS} $@
+            ${SRUN} ${DESTDIR}/bin/spack install ${INSTALL_OPTS} ${FRESH} $@
         fi
         # load the spec to create directories and prevent future "permission
         # denied" errors. 
@@ -132,10 +137,10 @@ EOD
 EOD
         fi
         set -e
-#         cat >> ${DESTDIR}/etc/spack/packages.yaml <<EOD
-#   all:
-#     target: ['x86_64_v3']
-# EOD
+         cat >> ${DESTDIR}/etc/spack/packages.yaml <<EOD
+  all:
+    target: ['x86_64_v3']
+EOD
     fi
 }
 
@@ -160,24 +165,27 @@ do_spack_installs() {
 }
 
 do_gcc_installs() {
-    def_gcc=$(gcc -dumpversion)
-    min_gcc=$(( ${def_gcc} + 1 ))
-    # max_gcc=12
-    max_gcc=$(spack versions -s gcc | grep '\.' | sort -nr | head -n1 | cut -d. -f1)
+    os_gcc=$(gcc -dumpversion)
+    min_gcc=$(( ${os_gcc} + 1 ))
+    max_gcc=${MAX_GCC:-$(echo $(spack versions -s gcc | grep '\.' | sort -nr | head -n1 | cut -d. -f1))}
+    install_if_missing gcc@${max_gcc}%gcc@${os_gcc} # install latest gcc using OS gcc
     for v in $(seq ${min_gcc} ${max_gcc}); do
-        install_if_missing gcc@${v}
+        # install all gcc using latest Spack-installed gcc
+        install_if_missing gcc@${v}%gcc@${max_gcc}
     done
     for v in $(seq ${min_gcc} ${max_gcc}); do
-        spack load gcc@${v}
+        spack load gcc@${v}%gcc@${max_gcc}
     done
     spack compiler find --scope site # to find spack-installed gcc
     rm -f ~/.spack/linux/compilers.yaml
     spack unload --all
     spack compiler find --scope site # to find OS-installed gcc
-    ONE_OF=$(spack compiler list --scope site | grep @ | sort -t@ -k2 -n | sed "s/^/'%/g;s/$/'/g" | paste -s -d,)
+    # list all available gcc, sort so that latest version is used by default
+    ONE_OF=$(spack compiler list --scope site | grep @ | sort -t@ -k2 -nr | sed "s/^/'%/g;s/$/'/g" | paste -s -d,)
     add_if_missing    "    require:" ${DESTDIR}/etc/spack/packages.yaml
     remove_if_present '    - one_of:' ${DESTDIR}/etc/spack/packages.yaml
     add_if_missing    "    - one_of: [${ONE_OF}]" ${DESTDIR}/etc/spack/packages.yaml
+    spack uninstall --yes-to-all --all %gcc@${os_gcc}
 }
 
 find_duplicates() {

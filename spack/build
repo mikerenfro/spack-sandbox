@@ -1,5 +1,4 @@
 #!/bin/bash
-
 BASEDIR=$(dirname $(realpath $0))
 USE_CLUSTER=0
 CLUSTER_PARTITION=batch-impulse
@@ -9,6 +8,8 @@ REMOTEURL='https://github.com/spack/spack.git'
 REMOTETAG=$1
 CLONEDIR=${PWD}/git
 DESTDIR=${PWD}/$(basename ${REMOTETAG})
+
 source ${BASEDIR}/functions.sh
-INSTALL_OPTS="-j${J_FLAG}"
+INSTALL_OPTS="-j${J_FLAG}" # comes from functions.sh
+
 do_full_install $1 $2
